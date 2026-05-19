@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Book Your Installation — View at Home</title>
+<link rel="preconnect" href="https://assets.calendly.com" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #111110;
+    --white: #ffffff;
+    --off-white: #f7f6f3;
+    --mid: #e8e6e1;
+    --muted: #888780;
+    --green: #1a9e5c;
+    --font: 'Georgia', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --radius: 6px;
+    --radius-lg: 12px;
+  }
+
+  html, body { background: var(--white); overflow-x: hidden; min-height: 100%; }
+
+  body {
+    font-family: var(--sans);
+    color: var(--black);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── LOADER ── */
+  #page-loader {
+    position: fixed; inset: 0; background: #ffffff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    z-index: 9999; transition: opacity 0.4s ease;
+  }
+  #page-loader.fade-out { opacity: 0; pointer-events: none; }
+  .loader-logo { font-family: var(--font); font-size: 18px; color: var(--black); letter-spacing: 0.02em; }
+  .loader-bar-track { width: 120px; height: 1px; background: var(--mid); border-radius: 2px; overflow: hidden; }
+  .loader-bar-fill { height: 100%; width: 0%; background: var(--black); border-radius: 2px; animation: loader-progress 1.2s ease-out forwards; }
+  @keyframes loader-progress { 0% { width: 0%; } 60% { width: 75%; } 100% { width: 95%; } }
+  .loader-text { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  #page-content { opacity: 0; transition: opacity 0.3s ease 0.1s; }
+  #page-content.visible { opacity: 1; }
+
+  /* ── MAIN LAYOUT ── */
+  .page-wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .main {
+    flex: 1;
+    max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 56px 32px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: start;
+  }
+
+  /* ── LEFT COLUMN ── */
+  .left { padding-top: 8px; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 5px 14px; border: 1px solid var(--mid); border-radius: 100px;
+    color: var(--muted); margin-bottom: 1.75rem;
+  }
+  .badge-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; flex-shrink: 0; }
+
+  h1 {
+    font-family: var(--font);
+    font-size: clamp(28px, 3.5vw, 42px);
+    font-weight: 400; line-height: 1.18; color: var(--black);
+    letter-spacing: -0.02em; margin-bottom: 1.1rem;
+  }
+
+  .sub {
+    font-size: 16px; color: var(--muted); line-height: 1.65;
+    margin-bottom: 2.25rem; max-width: 360px;
+  }
+
+  /* ── STEPS ── */
+  .steps { display: flex; flex-direction: column; gap: 1.1rem; margin-bottom: 2.5rem; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    width: 24px; height: 24px; background: var(--black); color: var(--white);
+    border-radius: 50%; font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-title { font-size: 14px; font-weight: 500; color: var(--black); margin-bottom: 1px; }
+  .step-desc { font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+  /* ── ERIK CARD ── */
+  .erik-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--mid);
+    border-radius: var(--radius-lg);
+    background: var(--off-white);
+  }
+  .erik-card img {
+    width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  }
+  .erik-name { font-size: 14px; font-weight: 500; color: var(--black); }
+  .erik-title { font-size: 12px; color: var(--muted); }
+
+  /* ── RIGHT COLUMN — CALENDLY ── */
+  .right {}
+
+  .cal-wrap {
+    border: 1px solid var(--mid);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .cal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--mid);
+    background: var(--off-white);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .cal-header-title {
+    font-family: var(--font);
+    font-size: 16px; font-weight: 400; color: var(--black); margin-bottom: 6px;
+  }
+  .cal-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+  .cmeta { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+
+  .step-dir-mobile { display: none; }
+  @media (max-width: 720px) {
+    .step-dir-desktop { display: none; }
+    .step-dir-mobile { display: inline; }
+  }
+
+  /* Calendly widget — 550px cuts off the grey footer inside the iframe */
+  .calendly-inline-widget {
+    width: 100%;
+    min-width: 0;
+    height: 550px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--mid);
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--muted);
+    max-width: 1000px; margin: 0 auto; width: 100%;
+  }
+  footer .f-brand { font-family: var(--font); font-size: 14px; color: var(--black); }
+  footer a { color: var(--muted); text-decoration: underline; }
+
+  /* ── RESPONSIVE ── */
+
+  /* Large desktop */
+  @media (min-width: 1200px) {
+    .main { max-width: 1100px; gap: 80px; }
+  }
+
+  /* Tablet landscape / small desktop */
+  @media (max-width: 900px) {
+    .main { gap: 40px; padding: 48px 24px 40px; }
+    h1 { font-size: clamp(26px, 4vw, 36px); }
+  }
+
+  /* Tablet portrait — stack columns */
+  @media (max-width: 720px) {
+    .main {
+      grid-template-columns: 1fr;
+      gap: 32px;
+      padding: 36px 20px 32px;
+    }
+    .sub { max-width: 100%; }
+    /* On mobile, "Pick a time on the right" doesn't make sense */
+    .step-title-right::after { content: 'below'; }
+    footer {
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+      padding: 20px;
+    }
+  }
+
+  /* Small phones */
+  @media (max-width: 400px) {
+    .main { padding: 28px 16px 24px; }
+    h1 { font-size: 28px; }
+    .badge { font-size: 10px; padding: 4px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="page-loader">
+  <div class="loader-logo">View at Home</div>
+  <div class="loader-bar-track"><div class="loader-bar-fill"></div></div>
+  <div class="loader-text">Loading</div>
+</div>
+
+<div id="page-content">
+<div class="page-wrap">
+
+  <div class="main">
+
+    <!-- LEFT -->
+    <div class="left">
+      <div class="badge"><div class="badge-dot"></div>Payment confirmed</div>
+
+      <h1>Book your<br>installation call</h1>
+
+      <p class="sub">Erik will personally add View at Home to your website. Pick a slot and you'll be live within 24 hours.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div>
+            <div class="step-title">Pick a time <span class="step-dir-desktop">on the right</span><span class="step-dir-mobile">below</span></div>
+            <div class="step-desc">You'll get a video call link by email straight away.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div>
+            <div class="step-title">20-minute call with Erik</div>
+            <div class="step-desc">Just show up. Erik handles the full installation — no tech work on your end.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div>
+            <div class="step-title">You're live</div>
+            <div class="step-desc">Your buyers start seeing your art on their walls. Every new artwork appears automatically.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="erik-card">
+        <img src="https://static.wixstatic.com/media/1f3402_e4642055821d4576951afec38b5a28d7~mv2.png" alt="Erik" />
+        <div>
+          <div class="erik-name">Erik Sjoberg</div>
+          <div class="erik-title">CEO, View at Home · I personally handle every installation.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — CALENDLY -->
+    <div class="right">
+      <div class="cal-wrap">
+        <div class="cal-header">
+          <div class="cal-header-title">Select a date &amp; time</div>
+          <div class="cal-meta">
+            <div class="cmeta">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              20 min
+            </div>
+            <div class="cmeta">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Video link sent on confirmation
+            </div>
+          </div>
+        </div>
+        <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+        <div class="calendly-inline-widget" data-url="https://calendly.com/erik-baetes/30min?hide_event_type_details=1&hide_gdpr_banner=1&primary_color=1a9e5c"></div>
+        <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+      </div>
+    </div>
+
+  </div><!-- end .main -->
+
+  <footer>
+    <div class="f-brand">View at Home</div>
+    <div>© 2026 Baetes Technologies AB &nbsp;·&nbsp; <a href="mailto:erik@baetes.net">erik@baetes.net</a> &nbsp;·&nbsp; <a href="https://www.art-baetes.com/_files/ugd/1f3402_44b3f24137c640dc8bf5439edd30e2b4.pdf" target="_blank">Terms</a> &nbsp;·&nbsp; <a href="https://www.art-baetes.com/_files/ugd/1f3402_7bfcbe9e4cdb4ea58d1752a74dadee1c.pdf" target="_blank">Privacy</a></div>
+  </footer>
+
+</div>
+</div>
+
+<script>
+  function dismissLoader() {
+    var loader = document.getElementById('page-loader');
+    var content = document.getElementById('page-content');
+    if (loader && content) {
+      loader.classList.add('fade-out');
+      content.classList.add('visible');
+      setTimeout(function() { loader.style.display = 'none'; }, 450);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { requestAnimationFrame(dismissLoader); });
+  } else {
+    requestAnimationFrame(dismissLoader);
+  }
+</script>
+
+</body>
+</html>
