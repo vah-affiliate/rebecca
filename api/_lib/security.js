@@ -1,3 +1,8 @@
+const ALLOWED_ORIGINS = [
+  'https://rebecca-lake.vercel.app',
+  'https://rebecca.art-baetes.com',
+];
+
 function setSecurityHeaders(res) {
   res.setHeader('X-Content-Type-Options',    'nosniff');
   res.setHeader('X-Frame-Options',           'DENY');
@@ -9,20 +14,23 @@ function setSecurityHeaders(res) {
   res.setHeader('Expires',                   '0');
 }
 
-const ALLOWED_ORIGINS = [
-  'https://rebecca-lake.vercel.app',
-  'https://rebecca.art-baetes.com',
-];
-
 function setCORS(res, req) {
   const origin = req && req.headers && req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods',     'POST');
+  const allowedOrigin = (origin && ALLOWED_ORIGINS.includes(origin)) ? origin : ALLOWED_ORIGINS[0];
+  res.setHeader('Access-Control-Allow-Origin',      allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods',     'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers',     'Content-Type');
   res.setHeader('Access-Control-Max-Age',           '86400');
   res.setHeader('Access-Control-Allow-Credentials', 'false');
+  res.setHeader('Vary',                             'Origin');
+}
+
+function handleOptions(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return true;
+  }
+  return false;
 }
 
 function checkEnvVars(vars) {
@@ -48,4 +56,4 @@ function checkContentType(req) {
   return (req.headers['content-type'] || '').toLowerCase().includes('application/json');
 }
 
-module.exports = { setSecurityHeaders, setCORS, checkEnvVars, getClientIP, checkBodySize, checkContentType };
+module.exports = { setSecurityHeaders, setCORS, handleOptions, checkEnvVars, getClientIP, checkBodySize, checkContentType };
