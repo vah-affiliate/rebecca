@@ -1,18 +1,16 @@
 const crypto = require('crypto');
-const { rateLimit }                                          = require('./_lib/rateLimit');
-const { setSecurityHeaders, setCORS, checkEnvVars,
-        getClientIP, checkBodySize, checkContentType }       = require('./_lib/security');
+const { rateLimit } = require('./_lib/rateLimit');
+const { setSecurityHeaders, setCORS, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
 
-const PLANS = {
-  full:        { amount: '549.00', label: 'View at Home — Full Year'       },
+const PLANS      = {
+  full:        { amount: '549.00', label: 'View at Home — Full Year' },
   installment: { amount: '299.00', label: 'View at Home — Installment 1/2' },
 };
 const CURRENCY   = 'EUR';
 const RETURN_URL = 'https://rebecca.art-baetes.com/book';
 const CANCEL_URL = 'https://rebecca-lake.vercel.app/';
 const PAYPAL_API = 'https://api-m.paypal.com';
-
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+const limiter    = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
@@ -28,8 +26,8 @@ module.exports = async (req, res) => {
     return res.status(429).json({ error: 'Too many requests.' });
   }
 
-  if (!checkBodySize(req, 512))   return res.status(413).json({ error: 'Request too large' });
-  if (!checkContentType(req))     return res.status(415).json({ error: 'Invalid content type' });
+  if (!checkBodySize(req, 512)) return res.status(413).json({ error: 'Request too large' });
+  if (!checkContentType(req))   return res.status(415).json({ error: 'Invalid content type' });
 
   try { checkEnvVars(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET']); }
   catch { return res.status(500).json({ error: 'Server error' }); }
@@ -40,64 +38,41 @@ module.exports = async (req, res) => {
   }
 
   const selected = PLANS[plan];
-
-  // ── IDEMPOTENCY KEY for PayPal ───────────────────────────
-  // PayPal-Request-Id prevents duplicate orders from double-clicks
-  const timeWindow     = Math.floor(Date.now() / (10 * 60 * 1000));
-  const idempotencyKey = crypto
-    .createHash('sha256')
-    .update(`paypal:${ip}:${plan}:${timeWindow}`)
-    .digest('hex');
+  const timeWindow = Math.floor(Date.now() / (10 * 60 * 1000));
+  const iKey       = crypto.createHash('sha256').update(`paypal:${ip}:${plan}:${timeWindow}`).digest('hex');
 
   try {
     const authRes = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
-      method: 'POST',
+      method:  'POST',
       headers: {
         'Content-Type':  'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          process.env.PAYPAL_CLIENT_ID + ':' + process.env.PAYPAL_CLIENT_SECRET
-        ).toString('base64'),
+        'Authorization': 'Basic ' + Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64'),
       },
       body: 'grant_type=client_credentials',
     });
-
-    if (!authRes.ok) throw new Error('PayPal auth failed');
+    if (!authRes.ok) throw new Error('auth failed');
     const { access_token } = await authRes.json();
 
     const orderRes = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
-      method: 'POST',
+      method:  'POST',
       headers: {
-        'Content-Type':     'application/json',
-        'Authorization':    `Bearer ${access_token}`,
-        'PayPal-Request-Id': idempotencyKey, // ← PayPal deduplicates on this
+        'Content-Type':      'application/json',
+        'Authorization':     `Bearer ${access_token}`,
+        'PayPal-Request-Id': iKey,
       },
       body: JSON.stringify({
         intent: 'CAPTURE',
-        purchase_units: [{
-          amount: {
-            currency_code: CURRENCY,
-            value:         selected.amount,
-          },
-          description: selected.label,
-          custom_id:   `rebecca_knoerr_${plan}`,
-        }],
-        application_context: {
-          brand_name:   'View at Home',
-          landing_page: 'NO_PREFERENCE',
-          user_action:  'PAY_NOW',
-          return_url:   RETURN_URL,
-          cancel_url:   CANCEL_URL,
-        },
+        purchase_units: [{ amount: { currency_code: CURRENCY, value: selected.amount }, description: selected.label }],
+        application_context: { brand_name: 'View at Home', landing_page: 'NO_PREFERENCE', user_action: 'PAY_NOW', return_url: RETURN_URL, cancel_url: CANCEL_URL },
       }),
     });
 
     const order = await orderRes.json();
-    if (!order.id) throw new Error('No order ID returned');
-
+    if (!order.id) throw new Error('no order id');
     return res.status(200).json({ orderID: order.id });
 
   } catch (err) {
-    console.error('[create-paypal-order]', err.message);
+    console.error('[pp-order]', err.message);
     return res.status(500).json({ error: 'Could not create order. Please try again.' });
   }
 };
