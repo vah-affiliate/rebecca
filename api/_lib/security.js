@@ -9,10 +9,16 @@ function setSecurityHeaders(res) {
   res.setHeader('Expires',                   '0');
 }
 
-const ALLOWED_ORIGIN = 'https://rebecca-lake.vercel.app';
+const ALLOWED_ORIGINS = [
+  'https://rebecca-lake.vercel.app',
+  'https://rebecca.art-baetes.com',
+];
 
-function setCORS(res) {
-  res.setHeader('Access-Control-Allow-Origin',      ALLOWED_ORIGIN);
+function setCORS(res, req) {
+  const origin = req && req.headers && req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods',     'POST');
   res.setHeader('Access-Control-Allow-Headers',     'Content-Type');
   res.setHeader('Access-Control-Max-Age',           '86400');
