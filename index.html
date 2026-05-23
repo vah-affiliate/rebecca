@@ -416,11 +416,13 @@
     background: #fff;
     border-radius: 12px;
     padding: 2rem 1.5rem;
-    max-width: 400px;
+    max-width: 420px;
     width: 100%;
     position: relative;
-    /* Keeps modal from sticking to top on very short screens */
     margin: auto;
+    max-height: 92vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   /* Prevent iOS bounce scroll from showing page content behind modal */
   body.modal-open {
@@ -447,6 +449,24 @@
     }
   }
 </style>
+  <!-- Security: Content Security Policy -->
+  <!-- Locks down what scripts/resources can load — prevents XSS and injection -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com;
+    frame-src https://js.stripe.com https://hooks.stripe.com https://www.paypal.com;
+    connect-src 'self' https://api.stripe.com https://www.paypal.com https://rebecca-lake.vercel.app;
+    img-src 'self' data: https://upload.wikimedia.org https://www.paypalobjects.com https://video.wixstatic.com;
+    media-src https://video.wixstatic.com;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'none';
+  ">
+  <!-- Stripe + PayPal SDKs — replace YOUR_PAYPAL_CLIENT_ID -->
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://www.paypal.com/sdk/js?client-id=Afv-BiWQus5sbFjEZEBCf6mpgf2aOkOi0QDiBRFaajhbCTnhr81QMEbxIMg885EKYjx3vox5tVtRT0RnD&currency=EUR&intent=capture" onload="renderPayPal()"></script>
 </head>
 <body>
 
@@ -609,64 +629,53 @@
 
   <!-- PAYMENT CHOICE MODAL -->
   <!-- position:absolute on overlay so it works correctly inside Wix/GitHub iframe -->
+  <!-- PAYMENT MODAL -->
   <div id="payment-modal" onclick="if(event.target===this)hideModal()">
     <div id="modal-inner">
-      <button onclick="hideModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;line-height:1;">×</button>
-      <div style="font-family:Georgia,serif;font-size:20px;font-weight:400;color:#111;margin-bottom:6px;">Choose your payment</div>
-      <div style="font-size:13px;color:#888780;margin-bottom:1.5rem;">Same service, same installation — pick what works for you.</div>
 
-      <!-- STRIPE SECTION -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <span style="font-size:12px;font-weight:500;color:#888780;text-transform:uppercase;letter-spacing:0.07em;">Pay with Stripe or card</span>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height:20px;width:auto;" />
+      <button onclick="hideModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;line-height:1;" aria-label="Close">×</button>
+
+      <div style="font-family:Georgia,serif;font-size:20px;font-weight:400;color:var(--black);margin-bottom:4px;">Choose your payment</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:1.25rem;">Same service, same installation — pick what works for you.</div>
+
+      <!-- Plan toggle -->
+      <div style="display:flex;gap:6px;margin-bottom:1rem;background:var(--off-white);border:1px solid var(--mid);border-radius:8px;padding:4px;">
+        <button id="plan-full-btn" onclick="setPlan('full')" style="flex:1;padding:.5rem;border:none;border-radius:6px;background:var(--black);color:var(--white);font-size:13px;cursor:pointer;font-family:var(--sans);transition:all .2s;">€549 — pay in full</button>
+        <button id="plan-inst-btn" onclick="setPlan('installment')" style="flex:1;padding:.5rem;border:none;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--sans);transition:all .2s;">2 × €299 installments</button>
+      </div>
+      <div id="inst-note" style="display:none;font-size:12px;color:var(--muted);margin:-0.5rem 0 0.75rem;line-height:1.5;">First €299 today. Second €299 charged automatically after 6 months.</div>
+
+      <!-- Card / Stripe -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;">Pay with card</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height:15px;width:auto;opacity:0.45;" />
+      </div>
+      <div id="stripe-payment-element" style="margin-bottom:.75rem;min-height:60px;"></div>
+      <div id="stripe-loading" style="font-size:13px;color:var(--muted);margin-bottom:.75rem;">Loading payment form…</div>
+      <div id="stripe-error-msg" style="display:none;font-size:13px;color:#c0392b;margin-bottom:.75rem;padding:.5rem .75rem;background:#fdf0f0;border-radius:6px;"></div>
+      <button id="stripe-pay-btn" onclick="submitStripe()" style="display:block;width:100%;padding:14px;background:var(--black);color:var(--white);border:none;border-radius:var(--radius);font-size:15px;font-weight:500;cursor:pointer;font-family:var(--sans);letter-spacing:0.01em;margin-bottom:1.25rem;transition:opacity .15s;">
+        <span id="stripe-btn-text">Pay €549 →</span>
+        <span id="stripe-btn-loading" style="display:none;">Processing…</span>
+      </button>
+
+      <!-- Or divider -->
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;">
+        <div style="flex:1;height:1px;background:var(--mid);"></div>
+        <span style="font-size:12px;color:var(--muted);">or</span>
+        <div style="flex:1;height:1px;background:var(--mid);"></div>
       </div>
 
-      <!-- ✏️ TEMPLATE: Replace STRIPE_LINK_FULL with the €549 one-time Stripe Connect link -->
-      <a href="STRIPE_LINK_FULL" style="display:block;border:1px solid #e8e6e1;border-radius:8px;padding:1rem 1.25rem;margin-bottom:8px;text-decoration:none;" onmouseover="this.style.borderColor='#111110'" onmouseout="this.style.borderColor='#e8e6e1'">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
-          <div>
-            <div style="font-size:15px;font-weight:500;color:#111110;">Pay in full</div>
-            <div style="font-size:12px;color:#888780;margin-top:3px;">One payment today. Done.</div>
-          </div>
-          <div style="font-size:17px;font-weight:500;color:#111110;white-space:nowrap;">€549<div style="font-size:11px;color:#b0aca5;font-weight:400;text-align:right;">~$600 USD</div></div>
-        </div>
-      </a>
-
-      <!-- ✏️ TEMPLATE: Replace STRIPE_LINK_INSTALLMENT with the €299×2 Stripe Connect link -->
-      <a href="STRIPE_LINK_INSTALLMENT" style="display:block;border:1px solid #e8e6e1;border-radius:8px;padding:1rem 1.25rem;text-decoration:none;" onmouseover="this.style.borderColor='#111110'" onmouseout="this.style.borderColor='#e8e6e1'">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
-          <div>
-            <div style="font-size:15px;font-weight:500;color:#111110;">2 installments</div>
-            <div style="font-size:12px;color:#888780;margin-top:3px;">€299 now, €299 in 6 months.</div>
-          </div>
-          <div style="font-size:17px;font-weight:500;color:#111110;white-space:nowrap;">€299 ×2<div style="font-size:11px;color:#b0aca5;font-weight:400;text-align:right;">~$330 USD ×2</div></div>
-        </div>
-      </a>
-
-      <!-- DIVIDER -->
-      <div style="border-top:1px solid #e8e6e1;margin:1.25rem 0;"></div>
-
-      <!-- PAYPAL SECTION -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <span style="font-size:12px;font-weight:500;color:#888780;text-transform:uppercase;letter-spacing:0.07em;">Pay with PayPal or card</span>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height:20px;width:auto;" />
+      <!-- PayPal -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;">Pay with PayPal</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height:18px;width:auto;opacity:0.55;" />
       </div>
+      <div id="paypal-button-container"></div>
 
-      <!-- ✏️ TEMPLATE: Replace PAYPAL_LINK_FULL with your PayPal payment link for €549 -->
-      <a href="https://www.paypal.com/ncp/payment/STZ9Q7AV4TQPG" style="display:block;border:1px solid #e8e6e1;border-radius:8px;padding:1rem 1.25rem;margin-bottom:8px;text-decoration:none;" onmouseover="this.style.borderColor='#111110'" onmouseout="this.style.borderColor='#e8e6e1'">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
-          <div>
-            <div style="font-size:15px;font-weight:500;color:#111110;">Pay in full</div>
-            <div style="font-size:12px;color:#888780;margin-top:3px;">One payment today. Done.</div>
-          </div>
-          <div style="font-size:17px;font-weight:500;color:#111110;white-space:nowrap;">€549<div style="font-size:11px;color:#b0aca5;font-weight:400;text-align:right;">~$600 USD</div></div>
-        </div>
-      </a>
-
-      <!-- SECURITY NOTE -->
-      <div style="display:flex;align-items:center;gap:10px;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid #e8e6e1;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span style="font-size:12px;color:#888780;line-height:1.5;">Payments are securely handled by the official payment processors</span>
+      <!-- Security -->
+      <div style="display:flex;align-items:center;gap:8px;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--mid);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span style="font-size:12px;color:var(--muted);line-height:1.5;">Payments are securely handled by Stripe and PayPal</span>
       </div>
 
     </div>
@@ -727,31 +736,182 @@
     requestAnimationFrame(dismissLoader);
   }
 
-  // Modal — uses position:fixed but tells the parent Wix frame to scroll to
-  // the right position so the overlay appears centered in the visible viewport
+  // ── CONFIG ──────────────────────────────────────────────
+  var STRIPE_PK = 'pk_live_51QeFNVHVLQZzk2PCB66U0z6aqy8aKULWUh74OcgYEenmBma0RzvuMFPVAfUNKfLy1dr4drx4TovcSOtfSjYBcTPd00jyasEski'; // Replace with pk_live_...
+  var BASE_URL  = 'https://rebecca-lake.vercel.app';
+  var BOOK_URL  = 'https://rebecca.art-baetes.com/book';
+
+  // ── STATE ────────────────────────────────────────────────
+  var currentPlan = 'full';
+  var stripe, elements, paypalRendered = false;
+
+  // ── MODAL OPEN / CLOSE ───────────────────────────────────
   function showModal() {
     var modal = document.getElementById('payment-modal');
     modal.style.display = 'flex';
-    // iOS Safari scroll lock requires position:fixed on body
     var scrollY = window.scrollY;
     document.body.classList.add('modal-open');
     document.body.style.top = '-' + scrollY + 'px';
+    if (!stripe) initStripe();
+    if (!paypalRendered) renderPayPal();
   }
 
   function hideModal() {
     var modal = document.getElementById('payment-modal');
     modal.style.display = 'none';
-    // Restore scroll position after removing iOS fix
     var scrollY = parseInt(document.body.style.top || '0') * -1;
     document.body.classList.remove('modal-open');
     document.body.style.top = '';
     window.scrollTo(0, scrollY);
   }
 
-  // Listen for Escape key
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') hideModal();
   });
+
+  // ── PLAN TOGGLE ──────────────────────────────────────────
+  function setPlan(plan) {
+    currentPlan = plan;
+    var fullBtn = document.getElementById('plan-full-btn');
+    var instBtn = document.getElementById('plan-inst-btn');
+    var instNote = document.getElementById('inst-note');
+    var btnText = document.getElementById('stripe-btn-text');
+
+    if (plan === 'full') {
+      fullBtn.style.background = 'var(--black)';
+      fullBtn.style.color = 'var(--white)';
+      instBtn.style.background = 'transparent';
+      instBtn.style.color = 'var(--muted)';
+      instNote.style.display = 'none';
+      if (btnText) btnText.textContent = 'Pay \u20ac549 \u2192';
+    } else {
+      instBtn.style.background = 'var(--black)';
+      instBtn.style.color = 'var(--white)';
+      fullBtn.style.background = 'transparent';
+      fullBtn.style.color = 'var(--muted)';
+      instNote.style.display = 'block';
+      if (btnText) btnText.textContent = 'Pay \u20ac299 now \u2192';
+    }
+
+    // Re-mount Stripe with new intent
+    document.getElementById('stripe-payment-element').innerHTML = '';
+    document.getElementById('stripe-loading').style.display = 'block';
+    mountStripeElement();
+
+    // Re-render PayPal
+    document.getElementById('paypal-button-container').innerHTML = '';
+    paypalRendered = false;
+    renderPayPal();
+  }
+
+  // ── STRIPE ───────────────────────────────────────────────
+  function initStripe() {
+    stripe = Stripe(STRIPE_PK);
+    mountStripeElement();
+  }
+
+  async function mountStripeElement() {
+    try {
+      var res = await fetch(BASE_URL + '/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: currentPlan })
+      });
+      var data = await res.json();
+      if (data.error) { showStripeError(data.error); return; }
+
+      elements = stripe.elements({
+        clientSecret: data.clientSecret,
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#111110',
+            colorBackground: '#ffffff',
+            colorText: '#111110',
+            colorDanger: '#c0392b',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            borderRadius: '8px',
+            spacingUnit: '4px',
+          },
+          rules: {
+            '.Input': { border: '1px solid #e8e6e1', boxShadow: 'none' },
+            '.Input:focus': { border: '1px solid #111110', boxShadow: 'none' },
+          }
+        }
+      });
+
+      var paymentEl = elements.create('payment', { layout: 'tabs' });
+      paymentEl.mount('#stripe-payment-element');
+      document.getElementById('stripe-loading').style.display = 'none';
+    } catch(err) {
+      showStripeError('Could not load payment form. Please refresh.');
+    }
+  }
+
+  async function submitStripe() {
+    var btn = document.getElementById('stripe-pay-btn');
+    var btnText = document.getElementById('stripe-btn-text');
+    var btnLoading = document.getElementById('stripe-btn-loading');
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoading.style.display = 'inline';
+    hideStripeError();
+
+    var result = await stripe.confirmPayment({
+      elements: elements,
+      confirmParams: { return_url: BOOK_URL }
+    });
+
+    if (result.error) {
+      showStripeError(result.error.message);
+      btn.disabled = false;
+      btnText.style.display = 'inline';
+      btnLoading.style.display = 'none';
+    }
+    // On success Stripe redirects to BOOK_URL
+  }
+
+  function showStripeError(msg) {
+    var el = document.getElementById('stripe-error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function hideStripeError() {
+    document.getElementById('stripe-error-msg').style.display = 'none';
+  }
+
+  // ── PAYPAL ───────────────────────────────────────────────
+  function renderPayPal() {
+    if (typeof paypal === 'undefined') return;
+    paypalRendered = true;
+    paypal.Buttons({
+      style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay', height: 44 },
+      createOrder: async function() {
+        var res = await fetch(BASE_URL + '/api/create-paypal-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: currentPlan })
+        });
+        var data = await res.json();
+        return data.orderID;
+      },
+      onApprove: async function(data) {
+        var res = await fetch(BASE_URL + '/api/capture-paypal-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderID: data.orderID })
+        });
+        var result = await res.json();
+        if (result.status === 'COMPLETED') {
+          window.location.href = BOOK_URL;
+        }
+      },
+      onError: function(err) {
+        console.error('PayPal error', err);
+        alert('Payment failed. Please try again or pay by card.');
+      }
+    }).render('#paypal-button-container');
+  }
 </script>
 
 
