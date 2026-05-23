@@ -1,13 +1,9 @@
-const { rateLimit }                                          = require('./_lib/rateLimit');
-const { setSecurityHeaders, setCORS, checkEnvVars,
-        getClientIP, checkBodySize, checkContentType }       = require('./_lib/security');
+const { rateLimit } = require('./_lib/rateLimit');
+const { setSecurityHeaders, setCORS, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
 
-const PAYPAL_API = 'https://api-m.paypal.com';
-
-// PayPal order IDs: uppercase alphanumeric, 8-20 chars
+const PAYPAL_API    = 'https://api-m.paypal.com';
 const ORDERID_REGEX = /^[A-Z0-9]{8,20}$/;
-
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+const limiter       = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
@@ -23,13 +19,12 @@ module.exports = async (req, res) => {
     return res.status(429).json({ error: 'Too many requests.' });
   }
 
-  if (!checkBodySize(req, 256))   return res.status(413).json({ error: 'Request too large' });
-  if (!checkContentType(req))     return res.status(415).json({ error: 'Invalid content type' });
+  if (!checkBodySize(req, 256)) return res.status(413).json({ error: 'Request too large' });
+  if (!checkContentType(req))   return res.status(415).json({ error: 'Invalid content type' });
 
   try { checkEnvVars(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET']); }
   catch { return res.status(500).json({ error: 'Server error' }); }
 
-  // ── VALIDATE orderID — strict format check ───────────────
   const orderID = req.body && req.body.orderID;
   if (!orderID || typeof orderID !== 'string' || !ORDERID_REGEX.test(orderID)) {
     return res.status(400).json({ error: 'Invalid request' });
@@ -37,41 +32,27 @@ module.exports = async (req, res) => {
 
   try {
     const authRes = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
-      method: 'POST',
+      method:  'POST',
       headers: {
         'Content-Type':  'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          process.env.PAYPAL_CLIENT_ID + ':' + process.env.PAYPAL_CLIENT_SECRET
-        ).toString('base64'),
+        'Authorization': 'Basic ' + Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64'),
       },
       body: 'grant_type=client_credentials',
     });
-
-    if (!authRes.ok) throw new Error('PayPal auth failed');
+    if (!authRes.ok) throw new Error('auth failed');
     const { access_token } = await authRes.json();
 
-    const captureRes = await fetch(
-      `${PAYPAL_API}/v2/checkout/orders/${orderID}/capture`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${access_token}`,
-        },
-      }
-    );
-
+    const captureRes = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderID}/capture`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+    });
     const capture = await captureRes.json();
 
-    // Only tell client success/failure — never expose capture details
-    if (capture.status === 'COMPLETED') {
-      return res.status(200).json({ status: 'COMPLETED' });
-    } else {
-      throw new Error(`Capture status: ${capture.status}`);
-    }
+    if (capture.status === 'COMPLETED') return res.status(200).json({ status: 'COMPLETED' });
+    throw new Error(`status: ${capture.status}`);
 
   } catch (err) {
-    console.error('[capture-paypal-order]', err.message);
+    console.error('[pp-capture]', err.message);
     return res.status(500).json({ error: 'Payment capture failed. Please contact support.' });
   }
 };
