@@ -21,7 +21,6 @@ function getRawBody(req) {
 
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
-
   if (req.method !== 'POST') return res.status(405).end();
 
   try { checkEnvVars(['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_REBECCA_ACCOUNT']); }
@@ -42,18 +41,15 @@ module.exports = async (req, res) => {
   if (event.type !== 'invoice.payment_succeeded') return res.status(200).json({ received: true });
 
   const invoice = event.data.object;
-  if (!invoice.subscription || !invoice.charge) return res.status(200).json({ received: true });
-  if (processedEvents.has(event.id)) return res.status(200).json({ received: true });
+  if (!invoice.subscription || !invoice.charge)   return res.status(200).json({ received: true });
+  if (processedEvents.has(event.id))               return res.status(200).json({ received: true });
 
   try {
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
-
     if (subscription.metadata.affiliate !== 'rebecca_knoerr' || subscription.metadata.plan !== 'installment') {
       return res.status(200).json({ received: true });
     }
-
     processedEvents.add(event.id);
-
     await stripe.transfers.create({
       amount:             COMMISSION,
       currency:           'eur',
@@ -61,7 +57,6 @@ module.exports = async (req, res) => {
       source_transaction: invoice.charge,
       metadata:           { event_id: event.id, invoice_id: invoice.id },
     });
-
   } catch (err) {
     console.error('[wh]', err.message);
     if (!processedEvents.has(event.id)) return res.status(500).end();
