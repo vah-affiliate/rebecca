@@ -1,5 +1,5 @@
 const { rateLimit } = require('./_lib/rateLimit');
-const { setSecurityHeaders, setCORS, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
+const { setSecurityHeaders, setCORS, handleOptions, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
 
 const PAYPAL_API    = 'https://api-m.paypal.com';
 const ORDERID_REGEX = /^[A-Z0-9]{8,20}$/;
@@ -8,9 +8,8 @@ const limiter       = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
   setCORS(res, req);
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')    return res.status(405).end();
+  if (handleOptions(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).end();
 
   const ip      = getClientIP(req);
   const limited = limiter(ip);
@@ -47,7 +46,6 @@ module.exports = async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
     });
     const capture = await captureRes.json();
-
     if (capture.status === 'COMPLETED') return res.status(200).json({ status: 'COMPLETED' });
     throw new Error(`status: ${capture.status}`);
 
