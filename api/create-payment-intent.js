@@ -1,7 +1,7 @@
 const Stripe = require('stripe');
 const crypto = require('crypto');
 const { rateLimit } = require('./_lib/rateLimit');
-const { setSecurityHeaders, setCORS, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
+const { setSecurityHeaders, setCORS, handleOptions, checkEnvVars, getClientIP, checkBodySize, checkContentType } = require('./_lib/security');
 
 const PLANS = {
   full:        { amount: 54900, label: 'View at Home — Full Year' },
@@ -14,9 +14,8 @@ const limiter         = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
   setCORS(res, req);
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')    return res.status(405).end();
+  if (handleOptions(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).end();
 
   const ip      = getClientIP(req);
   const limited = limiter(ip);
